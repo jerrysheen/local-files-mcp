@@ -64,7 +64,11 @@ local-files-mcp add-root ~/Scratch --id scratch --access write --full
 
 `--access` accepts `none`, `metadata`, `search`, `read`, or `write`, in
 increasing order of capability. `--full` removes the extension allowlist and
-deny globs **for that root only**.
+deny globs **for that root only**. Hidden-path blocking is relative to the
+root: a root that is itself a dot-directory (`.ai-data`) is not rejected just
+because its own name starts with a dot. Use `--allow-hidden` or
+`--allow-hidden-glob '**/.ai-data/**'` when a hidden folder lives *inside* a
+normal root.
 
 Each root carries:
 
@@ -77,6 +81,8 @@ Each root carries:
 | `allow_extensions` | file types readable in this root |
 | `deny_globs` | patterns excluded even when otherwise allowed |
 | `write_globs` | patterns writable when `access` is `write` |
+| `allow_hidden` | if `true`, hidden children of this root are readable (deny globs still apply) |
+| `allow_hidden_globs` | hidden-path exceptions for this root only, e.g. `**/.ai-data/**` |
 
 The default deny globs block the things you almost never want exposed:
 
@@ -100,7 +106,8 @@ Defaults, all of which err toward caution:
 | `max_search_results` | `100` | Cap results per search |
 | `max_scan_files` | `5000` | Cap files touched per scan |
 | `allow_symlinks` | `false` | Do not follow links out of a root |
-| `block_hidden_files` | `true` | Skip dotfiles |
+| `block_hidden_files` | `true` | Skip hidden path segments *inside* a root |
+| `allow_hidden_globs` | `[]` | Hidden paths that stay readable while the block is on |
 | `block_binary_files` | `true` | Skip non-text files |
 | `redact_secrets` | `true` | Mask key-shaped strings in returned content |
 | `label_file_content_untrusted` | `true` | Tag file content as untrusted input |

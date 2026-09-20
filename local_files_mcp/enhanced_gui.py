@@ -48,7 +48,8 @@ class FolderDialog(simpledialog.Dialog):
         default_id = Path(folder).name.replace(" ", "_").replace("-", "_").lower() or "folder"
         self.root_id_var = tk.StringVar(value=default_id)
         self.access_var = tk.StringVar(value="write")
-        self.result: tuple[str, str] | None = None
+        self.allow_hidden_var = tk.BooleanVar(value=Path(folder).name.startswith("."))
+        self.result: tuple[str, str, bool] | None = None
         super().__init__(parent, "Add folder")
 
     def body(self, master: tk.Widget) -> tk.Widget:
@@ -61,7 +62,8 @@ class FolderDialog(simpledialog.Dialog):
         ttk.Label(master, text="Access").grid(row=2, column=0, sticky="w", padx=8, pady=6)
         combo = ttk.Combobox(master, textvariable=self.access_var, values=["metadata", "search", "read", "write"], state="readonly")
         combo.grid(row=2, column=1, sticky="w", padx=8, pady=6)
-        ttk.Label(master, text="metadata = list root only\nsearch = filenames/snippets\nread = file contents\nwrite = create/overwrite files", justify="left").grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=8)
+        ttk.Checkbutton(master, text="Allow hidden files/folders in this root", variable=self.allow_hidden_var).grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=6)
+        ttk.Label(master, text="metadata = list root only\nsearch = filenames/snippets\nread = file contents\nwrite = create/overwrite files\nHidden children stay blocked unless this is checked, or allow_hidden_globs matches.", justify="left").grid(row=4, column=0, columnspan=2, sticky="w", padx=8, pady=8)
         return entry
 
     def validate(self) -> bool:
@@ -75,7 +77,7 @@ class FolderDialog(simpledialog.Dialog):
         return True
 
     def apply(self) -> None:
-        self.result = (self.root_id_var.get().strip(), self.access_var.get().strip())
+        self.result = (self.root_id_var.get().strip(), self.access_var.get().strip(), bool(self.allow_hidden_var.get()))
 
 
 class EnhancedGUI(tk.Tk):
@@ -114,6 +116,7 @@ class EnhancedGUI(tk.Tk):
 
         self.redact_var = tk.BooleanVar(value=bool(safety.get("redact_secrets", True)))
         self.hidden_var = tk.BooleanVar(value=bool(safety.get("block_hidden_files", True)))
+        self.allow_hidden_globs_var = tk.StringVar(value=", ".join(safety.get("allow_hidden_globs") or []))
         self.binary_var = tk.BooleanVar(value=bool(safety.get("block_binary_files", True)))
         self.symlink_var = tk.BooleanVar(value=bool(safety.get("allow_symlinks", False)))
         self.max_file_var = tk.StringVar(value=str(safety.get("max_file_bytes", 1048576)))
@@ -232,9 +235,11 @@ class EnhancedGUI(tk.Tk):
         general.grid(row=1, column=0, sticky="ew", padx=12, pady=8)
         ttk.Checkbutton(general, text="Redact likely secrets", variable=self.redact_var).grid(row=0, column=0, sticky="w", padx=12, pady=4)
         ttk.Checkbutton(general, text="Block hidden files/folders", variable=self.hidden_var).grid(row=1, column=0, sticky="w", padx=12, pady=4)
-        ttk.Checkbutton(general, text="Block binary files", variable=self.binary_var).grid(row=2, column=0, sticky="w", padx=12, pady=4)
-        ttk.Checkbutton(general, text="Allow symlinks", variable=self.symlink_var).grid(row=3, column=0, sticky="w", padx=12, pady=4)
-        for row, (label, var) in enumerate([("Max file bytes", self.max_file_var), ("Max scan files", self.max_scan_var), ("Max search results", self.max_results_var)], start=4):
+        ttk.Label(general, text="Allow hidden globs").grid(row=2, column=0, sticky="w", padx=12, pady=4)
+        ttk.Entry(general, textvariable=self.allow_hidden_globs_var, width=48).grid(row=2, column=1, sticky="w", padx=12, pady=4)
+        ttk.Checkbutton(general, text="Block binary files", variable=self.binary_var).grid(row=3, column=0, sticky="w", padx=12, pady=4)
+        ttk.Checkbutton(general, text="Allow symlinks", variable=self.symlink_var).grid(row=4, column=0, sticky="w", padx=12, pady=4)
+        for row, (label, var) in enumerate([("Max file bytes", self.max_file_var), ("Max scan files", self.max_scan_var), ("Max search results", self.max_results_var)], start=5):
             ttk.Label(general, text=label).grid(row=row, column=0, sticky="w", padx=12, pady=5)
             ttk.Entry(general, textvariable=var, width=18).grid(row=row, column=1, sticky="w", padx=12, pady=5)
 
@@ -363,6 +368,7 @@ class EnhancedGUI(tk.Tk):
         self.ngrok_path_var.set(self.cfg.get("tunnel", {}).get("ngrok_path", ""))
         self.redact_var.set(bool(safety.get("redact_secrets", True)))
         self.hidden_var.set(bool(safety.get("block_hidden_files", True)))
+        self.allow_hidden_globs_var.set(", ".join(safety.get("allow_hidden_globs") or []))
         self.binary_var.set(bool(safety.get("block_binary_files", True)))
         self.symlink_var.set(bool(safety.get("allow_symlinks", False)))
         self.max_file_var.set(str(safety.get("max_file_bytes", 1048576)))
@@ -400,6 +406,7 @@ class EnhancedGUI(tk.Tk):
             self.cfg.setdefault("safety", {}).update({
                 "redact_secrets": bool(self.redact_var.get()),
                 "block_hidden_files": bool(self.hidden_var.get()),
+                "allow_hidden_globs": [p.strip() for p in self.allow_hidden_globs_var.get().split(",") if p.strip()],
                 "block_binary_files": bool(self.binary_var.get()),
                 "allow_symlinks": bool(self.symlink_var.get()),
                 "max_file_bytes": int(self.max_file_var.get().strip() or "1048576"),
@@ -489,10 +496,10 @@ class EnhancedGUI(tk.Tk):
         dlg = FolderDialog(self, folder)
         if not dlg.result:
             return
-        root_id, access = dlg.result
+        root_id, access, allow_hidden = dlg.result
         try:
             self.cfg = load_config()
-            add_root(self.cfg, root_id=root_id, path=folder, access=access)
+            add_root(self.cfg, root_id=root_id, path=folder, access=access, allow_hidden=allow_hidden)
             save_config(self.cfg)
             self.refresh_all()
         except Exception as e:

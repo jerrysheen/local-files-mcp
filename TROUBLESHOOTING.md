@@ -83,7 +83,10 @@ Work through the filters in order:
 1. Is it inside a configured root?
 2. Does its extension appear in that root's `allow_extensions`?
 3. Does it match a deny glob — `.env*`, `secrets/**`, `.git/**`, `node_modules/**`?
-4. Is it hidden, and is `block_hidden_files` still `true`?
+4. Is it hidden *inside* the root (not the root itself)? `block_hidden_files`
+   skips those unless the root has `allow_hidden`, or the path matches
+   `allow_hidden_globs` (global or per-root). A root at `.ai-data` is allowed;
+   `.ai-data` as a child of `AICenter` needs an allow rule.
 5. Is it binary, and is `block_binary_files` still `true`?
 6. Is it over `max_file_bytes` (1 MB by default)?
 

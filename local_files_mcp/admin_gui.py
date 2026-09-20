@@ -69,6 +69,7 @@ class LocalFilesMcpGUI(tk.Tk):
         safety = self.cfg.setdefault("safety", {})
         self.redact_var = tk.BooleanVar(value=bool(safety.get("redact_secrets", True)))
         self.hidden_var = tk.BooleanVar(value=bool(safety.get("block_hidden_files", True)))
+        self.allow_hidden_globs_var = tk.StringVar(value=", ".join(safety.get("allow_hidden_globs") or []))
         self.binary_var = tk.BooleanVar(value=bool(safety.get("block_binary_files", True)))
         self.symlink_var = tk.BooleanVar(value=bool(safety.get("allow_symlinks", False)))
         self.approval_var = tk.BooleanVar(value=bool(safety.get("require_local_approval_for_writes", True)))
@@ -223,12 +224,14 @@ class LocalFilesMcpGUI(tk.Tk):
         ]
         for i, (text, var) in enumerate(checks):
             ttk.Checkbutton(safety_box, text=text, variable=var).grid(row=i, column=0, columnspan=2, sticky="w", padx=12, pady=4)
-        ttk.Label(safety_box, text="Max file bytes").grid(row=5, column=0, sticky="w", padx=12, pady=6)
-        ttk.Entry(safety_box, textvariable=self.max_file_var, width=20).grid(row=5, column=1, sticky="w", padx=12, pady=6)
-        ttk.Label(safety_box, text="Max scan files").grid(row=6, column=0, sticky="w", padx=12, pady=6)
-        ttk.Entry(safety_box, textvariable=self.max_scan_var, width=20).grid(row=6, column=1, sticky="w", padx=12, pady=6)
-        ttk.Label(safety_box, text="Max search results").grid(row=7, column=0, sticky="w", padx=12, pady=6)
-        ttk.Entry(safety_box, textvariable=self.max_results_var, width=20).grid(row=7, column=1, sticky="w", padx=12, pady=6)
+        ttk.Label(safety_box, text="Allow hidden globs").grid(row=5, column=0, sticky="w", padx=12, pady=6)
+        ttk.Entry(safety_box, textvariable=self.allow_hidden_globs_var, width=48).grid(row=5, column=1, sticky="w", padx=12, pady=6)
+        ttk.Label(safety_box, text="Max file bytes").grid(row=6, column=0, sticky="w", padx=12, pady=6)
+        ttk.Entry(safety_box, textvariable=self.max_file_var, width=20).grid(row=6, column=1, sticky="w", padx=12, pady=6)
+        ttk.Label(safety_box, text="Max scan files").grid(row=7, column=0, sticky="w", padx=12, pady=6)
+        ttk.Entry(safety_box, textvariable=self.max_scan_var, width=20).grid(row=7, column=1, sticky="w", padx=12, pady=6)
+        ttk.Label(safety_box, text="Max search results").grid(row=8, column=0, sticky="w", padx=12, pady=6)
+        ttk.Entry(safety_box, textvariable=self.max_results_var, width=20).grid(row=8, column=1, sticky="w", padx=12, pady=6)
 
         buttons = ttk.Frame(f)
         buttons.grid(row=row + 1, column=0, columnspan=2, sticky="ew", padx=12, pady=8)
@@ -387,6 +390,7 @@ class LocalFilesMcpGUI(tk.Tk):
         self.cfg.setdefault("safety", {}).update({
             "redact_secrets": bool(self.redact_var.get()),
             "block_hidden_files": bool(self.hidden_var.get()),
+            "allow_hidden_globs": [p.strip() for p in self.allow_hidden_globs_var.get().split(",") if p.strip()],
             "block_binary_files": bool(self.binary_var.get()),
             "allow_symlinks": bool(self.symlink_var.get()),
             "require_local_approval_for_writes": bool(self.approval_var.get()),
@@ -422,6 +426,7 @@ class LocalFilesMcpGUI(tk.Tk):
         safety = self.cfg.get("safety", {})
         self.redact_var.set(bool(safety.get("redact_secrets", True)))
         self.hidden_var.set(bool(safety.get("block_hidden_files", True)))
+        self.allow_hidden_globs_var.set(", ".join(safety.get("allow_hidden_globs") or []))
         self.binary_var.set(bool(safety.get("block_binary_files", True)))
         self.symlink_var.set(bool(safety.get("allow_symlinks", False)))
         self.approval_var.set(bool(safety.get("require_local_approval_for_writes", True)))
@@ -479,8 +484,9 @@ class LocalFilesMcpGUI(tk.Tk):
         if not root_id:
             return
         access = simpledialog.askstring("Access", "Access: metadata, search, read, or write", initialvalue="read") or "read"
+        allow_hidden = bool(messagebox.askyesno("Hidden files", "Allow hidden files/folders inside this root? Deny globs still apply."))
         try:
-            add_root(self.cfg, root_id=root_id, path=path, access=access)
+            add_root(self.cfg, root_id=root_id, path=path, access=access, allow_hidden=allow_hidden)
             save_config(self.cfg)
             self.refresh_all()
         except Exception as e:
@@ -551,6 +557,7 @@ class LocalFilesMcpGUI(tk.Tk):
         self.cfg.setdefault("safety", {}).update({
             "redact_secrets": bool(self.redact_var.get()),
             "block_hidden_files": bool(self.hidden_var.get()),
+            "allow_hidden_globs": [p.strip() for p in self.allow_hidden_globs_var.get().split(",") if p.strip()],
             "block_binary_files": bool(self.binary_var.get()),
             "allow_symlinks": bool(self.symlink_var.get()),
             "require_local_approval_for_writes": bool(self.approval_var.get()),

@@ -87,7 +87,8 @@ def default_config() -> dict[str, Any]:
             "max_search_results": 100,
             "max_scan_files": 5000,
             "allow_symlinks": False,
-            "block_hidden_files": True,
+            "block_hidden_files": False,
+            "allow_hidden_globs": [],
             "block_binary_files": True,
             "redact_secrets": True,
             "label_file_content_untrusted": True,
@@ -271,7 +272,14 @@ def save_config(cfg: dict[str, Any], path: Path = CONFIG_PATH) -> None:
     _write_json(USER_SETTINGS_PATH, _stable_user_subset(merged))
 
 
-def root_template(root_id: str, path: str, access: str = "read", full: bool = False) -> dict[str, Any]:
+def root_template(
+    root_id: str,
+    path: str,
+    access: str = "read",
+    full: bool = False,
+    allow_hidden: bool = False,
+    allow_hidden_globs: list[str] | None = None,
+) -> dict[str, Any]:
     return {
         "id": root_id,
         "path": expand(path),
@@ -280,16 +288,33 @@ def root_template(root_id: str, path: str, access: str = "read", full: bool = Fa
         "allow_extensions": ["*"] if full else DEFAULT_EXTENSIONS[:],
         "deny_globs": [] if full else ["**/.env*", "**/secrets/**", "**/.git/**", "**/node_modules/**"],
         "write_globs": ["**/*"] if access == "write" else [],
+        "allow_hidden": bool(allow_hidden or full),
+        "allow_hidden_globs": list(allow_hidden_globs or []),
         "tags": ["full-access"] if full else [],
     }
 
 
-def add_root(cfg: dict[str, Any], root_id: str, path: str, access: str = "read", full: bool = False) -> dict[str, Any]:
+def add_root(
+    cfg: dict[str, Any],
+    root_id: str,
+    path: str,
+    access: str = "read",
+    full: bool = False,
+    allow_hidden: bool = False,
+    allow_hidden_globs: list[str] | None = None,
+) -> dict[str, Any]:
     if access not in {"none", "metadata", "search", "read", "write"}:
         raise ValueError("access must be none, metadata, search, read, or write")
     roots = cfg.setdefault("roots", [])
     roots[:] = [r for r in roots if r.get("id") != root_id]
-    root = root_template(root_id, path, access=access, full=full)
+    root = root_template(
+        root_id,
+        path,
+        access=access,
+        full=full,
+        allow_hidden=allow_hidden,
+        allow_hidden_globs=allow_hidden_globs,
+    )
     roots.append(root)
     return root
 

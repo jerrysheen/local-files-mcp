@@ -118,7 +118,15 @@ def cmd_logout(args):
 
 def cmd_add_root(args):
     cfg = load_config()
-    root = add_root(cfg, args.id, args.path, access=args.access, full=args.full)
+    root = add_root(
+        cfg,
+        args.id,
+        args.path,
+        access=args.access,
+        full=args.full,
+        allow_hidden=args.allow_hidden,
+        allow_hidden_globs=args.allow_hidden_glob or None,
+    )
     save_config(cfg)
     print(json.dumps(root, indent=2))
 
@@ -205,6 +213,8 @@ def build_parser():
     sp.add_argument("--id", required=True)
     sp.add_argument("--access", default="read", choices=["none", "metadata", "search", "read", "write"])
     sp.add_argument("--full", action="store_true", help="Allow all extensions and no deny globs for this root")
+    sp.add_argument("--allow-hidden", action="store_true", help="Allow hidden files/folders under this root (deny globs still apply)")
+    sp.add_argument("--allow-hidden-glob", action="append", default=[], help="Allow specific hidden paths, e.g. **/.ai-data/** (repeatable)")
     sp.set_defaults(func=cmd_add_root)
 
     sp = sub.add_parser("full-access")

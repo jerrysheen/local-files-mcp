@@ -31,8 +31,20 @@ def is_relative_to(child: Path, parent: Path) -> bool:
         return False
 
 
+def hidden_parts(path: Path) -> list[str]:
+    return [part for part in path.parts if part.startswith(".") and part not in {".", ".."}]
+
+
 def hidden_part(path: Path) -> bool:
-    return any(part.startswith(".") and part not in {".", ".."} for part in path.parts)
+    return bool(hidden_parts(path))
+
+
+def hidden_parts_beyond_root(path: Path, root_path: Path) -> list[str]:
+    try:
+        rel = path.relative_to(root_path)
+    except ValueError:
+        return hidden_parts(path)
+    return hidden_parts(rel)
 
 
 def match_any(path: Path, patterns: list[str]) -> bool:
@@ -44,6 +56,45 @@ def match_any(path: Path, patterns: list[str]) -> bool:
         if fnmatch.fnmatch(text, pattern) or fnmatch.fnmatch(name, pattern):
             return True
     return False
+
+
+def expand_hidden_globs(patterns: list[str]) -> list[str]:
+    expanded: list[str] = []
+    for pattern in patterns:
+        if not pattern:
+            continue
+        expanded.append(pattern)
+        if pattern.endswith("/**"):
+            expanded.append(pattern[:-3])
+        elif pattern.endswith("/*"):
+            expanded.append(pattern[:-2])
+    return expanded
+
+
+def matches_hidden_allow(path: Path, root_path: Path, patterns: list[str]) -> bool:
+    if not patterns:
+        return False
+    candidates = [path]
+    try:
+        candidates.append(path.relative_to(root_path))
+    except ValueError:
+        pass
+    expanded = expand_hidden_globs(patterns)
+    return any(match_any(candidate, expanded) for candidate in candidates)
+
+
+def hidden_blocked(cfg: dict[str, Any], root: dict[str, Any], path: Path) -> bool:
+    safety = cfg.get("safety", {})
+    if not safety.get("block_hidden_files", True):
+        return False
+    if root.get("allow_hidden"):
+        return False
+    # Hidden folders such as .ai-data are crawlable. Only the leaf file is gated.
+    if path.is_dir() or not (path.name.startswith(".") and path.name not in {".", ".."}):
+        return False
+    root_path = norm(root["path"])
+    globs = list(safety.get("allow_hidden_globs") or []) + list(root.get("allow_hidden_globs") or [])
+    return not matches_hidden_allow(path, root_path, globs)
 
 
 def looks_binary(path: Path, sample_size: int = 4096) -> bool:
@@ -78,8 +129,6 @@ def validate(cfg: dict[str, Any], requested_path: str | Path, operation: str, mu
             raise PolicyError("Path does not exist")
         if p.exists() and p.is_symlink() and not safety.get("allow_symlinks", False):
             raise PolicyError("Symlinks are blocked")
-        if safety.get("block_hidden_files", True) and hidden_part(p):
-            raise PolicyError("Hidden files/directories are blocked")
 
         deny = list(cfg.get("global_deny_globs", [])) + list(root.get("deny_globs", []))
         if deny and match_any(p, deny):

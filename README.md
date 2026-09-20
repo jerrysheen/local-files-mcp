@@ -9,7 +9,7 @@ Local Files MCP lets you expose only the folders you choose to ChatGPT through a
 - Runs a local MCP-compatible HTTP endpoint at `http://127.0.0.1:8765/mcp`
 - Lets ChatGPT list, search, and read files inside configured local roots
 - Supports Safe Inbox, Project Folder, Home Read-Only, and Full Access profiles
-- Uses deny rules, extension filters, hidden/binary file blocking, file size limits, and secret redaction
+- Uses deny rules, extension filters, hidden/binary file blocking (with per-root or glob exceptions), file size limits, and secret redaction
 - Provides a local write workflow: prepare write → approve in GUI → commit operation
 - Optionally exposes Dangerous Mode direct writes for trusted private development machines
 - Generates ChatGPT Developer Mode connector settings
